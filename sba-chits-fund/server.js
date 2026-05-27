@@ -67,8 +67,8 @@ app.use((err, req, res, next) => {
 // ----- Boot -----
 (async () => {
   await initializeWorkbook();          // create /data/customers.xlsx if missing
-  await verifyTransporter();           // log SMTP status (non-fatal)
 
+  // Start listening immediately so the site is always reachable.
   app.listen(PORT, () => {
     console.log('========================================================');
     console.log(' SBA CHITS & FUND PRIVATE LIMITED - website is running');
@@ -76,5 +76,11 @@ app.use((err, req, res, next) => {
     console.log(`  Env       : ${process.env.NODE_ENV || 'development'}`);
     console.log(`  Admin     : ${process.env.ADMIN_EMAIL || '(not set)'}`);
     console.log('========================================================');
+  });
+
+  // Verify SMTP in the background (non-fatal). Email failures must never
+  // block the website from coming up; submissions still save to Excel.
+  verifyTransporter().catch((err) => {
+    console.warn('[Email] SMTP verification error:', err.message);
   });
 })();
