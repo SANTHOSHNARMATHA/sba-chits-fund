@@ -5,11 +5,22 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "type": "node",
+            "request": "launch",
+            "name": "Start SBA Chits Fund Server",
+            "program": "${workspaceFolder}/sba-chits-fund/server.js",
+            "cwd": "${workspaceFolder}/sba-chits-fund",
+            "console": "integratedTerminal",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
             "type": "chrome",
             "request": "launch",
             "name": "Launch Chrome against localhost",
             "url": "http://localhost:3000",
-            "webRoot": "${workspaceFolder}"
+            "webRoot": "${workspaceFolder}/sba-chits-fund"
         }
     ]
 }
