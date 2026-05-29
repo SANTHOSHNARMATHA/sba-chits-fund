@@ -71,6 +71,34 @@
 
   if (!form) return;
 
+  // ---- Auto-fill Chit Value & Duration from the selected scheme ----
+  // Figures mirror the "Sample Chit Schemes" table in index.html.
+  const SCHEME_DEFAULTS = {
+    'SBA Saver 25'   : { chitValue: '1,00,000',  duration: '25 months' },
+    'SBA Classic 30' : { chitValue: '3,00,000',  duration: '30 months' },
+    'SBA Trader 40'  : { chitValue: '5,00,000',  duration: '40 months' },
+    'SBA Business 50': { chitValue: '10,00,000', duration: '50 months' },
+    'SBA Premium 60' : { chitValue: '25,00,000', duration: '60 months' },
+  };
+
+  const schemeSelect   = form.querySelector('select[name="scheme"]');
+  const chitValueInput = form.querySelector('input[name="chitValue"]');
+  const durationSelect = form.querySelector('select[name="duration"]');
+
+  if (schemeSelect && chitValueInput && durationSelect) {
+    schemeSelect.addEventListener('change', () => {
+      const preset = SCHEME_DEFAULTS[schemeSelect.value];
+      if (preset) {
+        chitValueInput.value = preset.chitValue;
+        durationSelect.value = preset.duration;
+      } else {
+        // "Not sure yet" or "Other / Custom" - clear for manual entry.
+        chitValueInput.value = '';
+        durationSelect.value = '';
+      }
+    });
+  }
+
   function setStatus (type, html) {
     statusBox.className = 'enroll-form__status';
     statusBox.classList.add(type === 'success' ? 'is-success' : 'is-error');
