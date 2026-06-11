@@ -4,49 +4,41 @@
  * Sends a formatted HTML + plain-text email to the admin
  * whenever a new customer submits the enrollment form.
  *
+ * Delivery uses the Resend HTTP API (https://resend.com), configured via:
+ *   RESEND_API_KEY  - your Resend API key (required)
+ *   MAIL_FROM       - sender address (default: onboarding@resend.dev)
+ *   MAIL_FROM_NAME  - sender display name
+ *   ADMIN_EMAIL     - recipient address for notifications
+ *
  * IMPORTANT: The customer Excel file is NEVER attached.
  * The email body contains the customer details and description only.
  */
 
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-let transporter = null;
+let resendClient = null;
 
-function getTransporter () {
-  if (transporter) return transporter;
-
-  transporter = nodemailer.createTransport({
-    host:   process.env.SMTP_HOST || 'smtp.gmail.com',
-    port:   parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: (process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-
-  return transporter;
+function getResend () {
+  if (resendClient) return resendClient;
+  if (!process.env.RESEND_API_KEY) return null;
+  resendClient = new Resend(process.env.RESEND_API_KEY);
+  return resendClient;
 }
 
 /**
- * Verify SMTP configuration on server startup.
- * Logs a warning if credentials are missing/invalid – but
- * does NOT crash the server (customer submissions will still
- * be saved to Excel even if email fails).
+ * Verify email configuration on server startup.
+ * Logs a warning if the API key is missing – but does NOT crash the
+ * server (customer submissions will still be saved to Excel even if
+ * email is disabled).
  */
 async function verifyTransporter () {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.warn('[Email] SMTP_USER / SMTP_PASS not configured. Email notifications are DISABLED.');
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[Email] RESEND_API_KEY not configured. Email notifications are DISABLED.');
     return false;
   }
-  try {
-    await getTransporter().verify();
-    console.log('[Email] SMTP transporter verified – ready to send notifications.');
-    return true;
-  } catch (err) {
-    console.warn('[Email] SMTP verification failed:', err.message);
-    return false;
-  }
+  console.log('[Email] Resend API key detected – ready to send notifications.');
+  console.log(`[Email] Sending as "${process.env.MAIL_FROM || 'onboarding@resend.dev'}" -> "${process.env.ADMIN_EMAIL || '(ADMIN_EMAIL not set)'}"`);
+  return true;
 }
 
 function escapeHtml (str) {
@@ -168,19 +160,20 @@ function buildTextBody (customerId, data) {
  * Returns { ok: true } on success and { ok: false, error } on failure.
  */
 async function sendAdminNotification (customerId, data) {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    return { ok: false, error: 'SMTP not configured' };
+  const resend = getResend();
+  if (!resend) {
+    return { ok: false, error: 'RESEND_API_KEY not configured' };
   }
 
-  const fromName = process.env.SMTP_FROM_NAME || 'SBA Chits & Fund - Website';
-  const fromAddr = process.env.SMTP_USER;
+  const fromName = process.env.MAIL_FROM_NAME || 'SBA Chits & Fund - Website';
+  const fromAddr = process.env.MAIL_FROM || 'onboarding@resend.dev';
   const toAddr   = process.env.ADMIN_EMAIL || 'sbachitsfund@gmail.com';
 
   const subject = `New Customer Enrollment - ${data.fullName || customerId} [${customerId}]`;
 
   try {
-    const info = await getTransporter().sendMail({
-      from:    `"${fromName}" <${fromAddr}>`,
+    const { data: result, error } = await resend.emails.send({
+      from:    `${fromName} <${fromAddr}>`,
       to:      toAddr,
       replyTo: data.email || undefined,
       subject,
@@ -188,8 +181,14 @@ async function sendAdminNotification (customerId, data) {
       html:    buildHtmlBody(customerId, data),
       // NOTE: No attachments. The Excel file is internal-only.
     });
-    console.log(`[Email] Sent admin notification for ${customerId} (messageId=${info.messageId})`);
-    return { ok: true, messageId: info.messageId };
+
+    if (error) {
+      console.error(`[Email] Failed to send notification for ${customerId}:`, error.message || error);
+      return { ok: false, error: error.message || String(error) };
+    }
+
+    console.log(`[Email] Sent admin notification for ${customerId} (id=${result && result.id})`);
+    return { ok: true, messageId: result && result.id };
   } catch (err) {
     console.error(`[Email] Failed to send notification for ${customerId}:`, err.message);
     return { ok: false, error: err.message };
