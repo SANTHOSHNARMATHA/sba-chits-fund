@@ -1,0 +1,21 @@
+[
+  {
+    "customerId": "SBA-00001",
+    "submittedOn": "27 Jun 2026, 10:41:01 am",
+    "fullName": "Basker",
+    "phone": "9652478541",
+    "email": "baskr@gmail.com",
+    "age": "24",
+    "occupation": "Salaried",
+    "monthlyIncome": "Below ₹ 25,000",
+    "address": "1/89D\nAnniyampalayam, Chettipalayam",
+    "city": "Tiruppur",
+    "state": "Tamil Nadu",
+    "pincode": "641652",
+    "scheme": "SBA Saver 25",
+    "chitValue": "1,00,000",
+    "duration": "25 months",
+    "referralSource": "Friend / Family",
+    "message": "Test Test Test Test Test Test Test Test Test Test Test Test Test Test Test Test Test Test Test Test Test Test Test"
+  }
+]

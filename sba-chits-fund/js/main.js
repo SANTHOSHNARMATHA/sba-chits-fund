@@ -3,11 +3,20 @@
    - Sticky header shadow on scroll
    - Mobile menu toggle
    - Scroll reveal animations
-   - Enrollment form submission to /api/enroll
+   - Enrollment form:
+       1. Capture all form details
+       2. Send them to the server, which appends the record to
+          data/enrollment.json  (no file is downloaded)
+       3. Open the default mail app with the email pre-filled from
+          the built-in email template
    ============================================================ */
 
 (function () {
   'use strict';
+
+  // ---- Configuration ----
+  // Where enrollment notifications should be addressed.
+  const ADMIN_EMAIL = 'sbachitsfund@gmail.com';
 
   // ---- Year in footer ----
   const yearEl = document.getElementById('year');
@@ -64,7 +73,7 @@
     revealEls.forEach((el) => el.classList.add('is-visible'));
   }
 
-  // ---- Enrollment form submission ----
+  // ---- Enrollment form ----
   const form       = document.getElementById('enrollForm');
   const submitBtn  = document.getElementById('submitBtn');
   const statusBox  = document.getElementById('formStatus');
@@ -127,21 +136,68 @@
     return data;
   }
 
+  // ---- Email body built from the built-in email template ----
+  // (mailto: links can only carry plain text, not HTML.)
+  function buildEmailBody (customerId, data) {
+    const lines = [
+      'NEW CUSTOMER ENROLLMENT - SBA CHITS & FUND PRIVATE LIMITED',
+      '=========================================================',
+      '',
+      `Customer ID       : ${customerId}`,
+      `Full Name         : ${data.fullName || '-'}`,
+      `Phone Number      : ${data.phone || '-'}`,
+      `Email Address     : ${data.email || '-'}`,
+      `Age               : ${data.age || '-'}`,
+      `Occupation        : ${data.occupation || '-'}`,
+      `Monthly Income    : ${data.monthlyIncome || '-'}`,
+      `Address           : ${data.address || '-'}`,
+      `City              : ${data.city || '-'}`,
+      `State             : ${data.state || '-'}`,
+      `Pincode           : ${data.pincode || '-'}`,
+      `Interested Scheme : ${data.scheme || '-'}`,
+      `Chit Value (INR)  : ${data.chitValue || '-'}`,
+      `Duration (months) : ${data.duration || '-'}`,
+      `Heard Us Via      : ${data.referralSource || '-'}`,
+      '',
+      'Description / Message:',
+      '----------------------',
+      (data.message && String(data.message).trim()) ? data.message : '(none)',
+      '',
+      '---',
+      'This enrollment was captured via the SBA Chits & Fund company website.',
+      'CIN: U64990TZ2026PTC038770',
+    ];
+    return lines.join('\n');
+  }
+
+  function openMailApp (customerId, data) {
+    const subject = `New Customer Enrollment - ${data.fullName || customerId} [${customerId}]`;
+    const body    = buildEmailBody(customerId, data);
+    const mailto =
+      `mailto:${encodeURIComponent(ADMIN_EMAIL)}` +
+      `?subject=${encodeURIComponent(subject)}` +
+      `&body=${encodeURIComponent(body)}`;
+    // Navigating to a mailto: hands off to the OS mail app without
+    // unloading the page.
+    window.location.href = mailto;
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearStatus();
 
-    // Native HTML5 validation pass
+    // Native HTML5 validation pass (covers required fields + consent box).
     if (!form.checkValidity()) {
       form.reportValidity();
       return;
     }
 
     const data = collectFormData();
-
     setLoading(true);
 
     try {
+      // 1 & 2. Send to the server, which appends the record to
+      //        data/enrollment.json and returns the assigned Customer ID.
       const res = await fetch('/api/enroll', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -152,33 +208,37 @@
       try { payload = await res.json(); } catch (_) { /* non-JSON */ }
 
       if (!res.ok || !payload.success) {
-        const msg = payload && payload.error
+        const msg = (payload && payload.error)
           ? payload.error
-          : 'Something went wrong while submitting your details. Please try again or call us directly.';
+          : 'Something went wrong while saving your details. Please try again or call us directly.';
         setStatus('error', `<strong>Submission failed.</strong>${msg}`);
         setLoading(false);
         return;
       }
 
+      const customerId = payload.customerId;
+
       setStatus(
         'success',
-        `<strong>Thank you! Your enrollment was received.</strong>
-         Your reference ID is <code style="font-weight:700">${payload.customerId}</code>.
-         Our team will contact you within one working day.`
+        `<strong>Thank you! Your enrollment was saved.</strong>
+         Your reference ID is <code style="font-weight:700">${customerId}</code>.
+         Your email app is opening with the message ready to send.`
       );
+
       form.reset();
       // Keep the default state value
       const stateInput = form.querySelector('input[name="state"]');
       if (stateInput) stateInput.value = 'Tamil Nadu';
       setLoading(false);
-
-      // Scroll the status into view smoothly
       statusBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // 3. Open the default mail app pre-filled from the email template.
+      openMailApp(customerId, data);
     } catch (err) {
       console.error('Submit error', err);
       setStatus(
         'error',
-        `<strong>Network error.</strong>We could not reach the server. Please check your internet connection and try again, or call us on +91 98947 63248.`
+        `<strong>Network error.</strong>We could not reach the server. Please make sure the site is running, then try again, or call us on +91 98947 63248.`
       );
       setLoading(false);
     }

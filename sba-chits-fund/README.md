@@ -1,12 +1,13 @@
 # SBA Chits & Fund Private Limited — Official Website
 
-A complete, production-grade website for **SBA CHITS & FUND PRIVATE LIMITED**
-(CIN: U64990TZ2026PTC038770), a chit fund company registered in Tiruppur,
-Tamil Nadu.
+A website for **SBA CHITS & FUND PRIVATE LIMITED** (CIN: U64990TZ2026PTC038770),
+a chit fund company registered in Tiruppur, Tamil Nadu.
 
-The site includes a public marketing front-end and a backend that captures
-customer enrollment submissions, stores them in an internal Excel file, and
-sends a notification email to the admin.
+The front-end is plain **HTML, CSS & JavaScript**. It is backed by a tiny
+**zero-dependency Node server** (`server.js`) whose only jobs are to serve the
+site and to **append each enrollment to `data/enrollment.json`**. There is
+**no email sending and no Excel** — the browser opens the visitor's own mail
+client after the data is saved.
 
 ---
 
@@ -15,17 +16,13 @@ sends a notification email to the admin.
 - **Editorial, trust-driven public website** (navy + gold on warm cream paper)
 - **Hero, About, Services, How-it-works, Why-Choose-Us, Sample Schemes,
   Leadership and Contact** sections
-- **Customer Enrollment form** with validation, honeypot anti-spam and
-  rate limiting
-- **Automatic Excel persistence** at `data/customers.xlsx`
-  - Default file is auto-created on first run
-  - Every submission is appended as a new row with auto-generated
-    Customer ID (`SBA-00001`, `SBA-00002`, …)
-  - Header row, freeze pane, alternating banding, all pre-formatted
-- **Admin email notification** for every submission
-  - Beautiful HTML email with full customer details
-  - **The Excel file is _never_ attached** (per company requirement)
-- **Admin photo and contact card** featured prominently on the site
+- **Customer Enrollment form** with validation and honeypot anti-spam
+- **Enrollment capture:**
+  1. Captures every detail the customer entered.
+  2. Appends it as a new JSON object to **`data/enrollment.json`** (no file is
+     downloaded to the visitor's device).
+  3. Opens the visitor's **default mail application** with a new email
+     pre-filled from the built-in email template, ready to send.
 - Mobile-first responsive design
 
 ---
@@ -34,153 +31,79 @@ sends a notification email to the admin.
 
 ```
 sba-chits-fund/
-├── server.js                  # Express app entry point
+├── server.js             # Tiny zero-dependency static + /api/enroll server
 ├── package.json
-├── .env.example               # Copy to .env and fill values
-├── .gitignore
 ├── README.md
+├── .gitignore
 │
-├── routes/
-│   └── enroll.js              # POST /api/enroll  – form handler
+├── css/
+│   └── style.css
 │
-├── utils/
-│   ├── excelStore.js          # Excel init + append logic
-│   └── mailer.js              # Nodemailer SMTP notifications
+├── js/
+│   └── main.js           # All site logic + enrollment flow
 │
-├── data/
-│   └── customers.xlsx         # Internal customer register (auto-created)
+├── images/
+│   └── admin.jpg         # Managing Director photo
 │
-└── public/
-    ├── index.html             # Public website
-    ├── css/style.css
-    ├── js/main.js
-    └── images/admin.jpg       # Managing Director photo
+└── data/
+    └── enrollment.json   # All enrollments are appended here (JSON array)
 ```
 
 ---
 
-## Setup
+## How to run
 
-### 1. Prerequisites
-- Node.js **v18 or higher**
-- npm (bundled with Node)
+No dependencies to install — the server uses only built-in Node modules.
 
-### 2. Install dependencies
 ```bash
 cd sba-chits-fund
-npm install
+npm start          # or:  node server.js
 ```
 
-### 3. Configure environment
-Copy the example env file and fill in your real values:
-```bash
-cp .env.example .env
-```
+Then open <http://localhost:3000> in your browser.
 
-Open `.env` and set the SMTP credentials. **If you use Gmail**:
-
-1. Go to your Google Account → **Security** → enable **2-Step Verification**.
-2. Scroll down to **App Passwords**.
-3. Create an app password for "Mail" → copy the 16-character password.
-4. Put it in `.env` as `SMTP_PASS`.
-5. Set `SMTP_USER` to the same Gmail address (`sbachitsfund@gmail.com`).
-
-```dotenv
-PORT=3000
-NODE_ENV=production
-
-ADMIN_EMAIL=sbachitsfund@gmail.com
-
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=sbachitsfund@gmail.com
-SMTP_PASS=your-16-char-app-password
-SMTP_FROM_NAME=SBA Chits & Fund - Website
-```
-
-### 4. Run the server
-```bash
-npm start
-```
-Open <http://localhost:3000> in your browser.
-
-For development with auto-reload:
-```bash
-npm run dev
-```
+> Prefer a different port?  `PORT=5050 node server.js`
+> In VS Code you can also use the *"Start SBA Chits Fund Server"* launch config.
 
 ---
 
-## How the data flow works
+## How the enrollment flow works
 
-1. A customer fills the **Enrollment Form** on the website.
-2. The form submits a `POST` to `/api/enroll` as JSON.
-3. The server:
-   - Validates the fields (name, phone, email, address, etc.)
-   - Generates the next sequential **Customer ID** (e.g. `SBA-00042`).
-   - Appends a new row to `data/customers.xlsx` (the file is created
-     automatically with formatted headers on first server start).
-   - Sends a styled HTML email to the admin (`sbachitsfund@gmail.com`)
-     containing all customer details plus the description message.
-     **No file is attached — the Excel is strictly internal.**
-4. The website shows a success confirmation with the Customer ID.
+When a customer fills the **Enrollment Form** and clicks *Submit*:
 
-If the email step fails (for example, SMTP not yet configured), the
-submission is still saved to Excel — no customer data is ever lost.
+1. **Capture** — `js/main.js` reads and validates every field, then sends them
+   as JSON to `POST /api/enroll`.
+2. **Save to JSON file** — the server validates again, assigns a sequential
+   **Customer ID** (`SBA-00001`, `SBA-00002`, …) and a timestamp, and
+   **appends the record to `data/enrollment.json`** as a new object in the
+   array. Nothing is downloaded to the visitor's device.
+3. **Open mail app** — once the server confirms the save, the browser opens the
+   device's default email application with a new message **pre-filled** from the
+   built-in template:
+   - **To:** `sbachitsfund@gmail.com`
+   - **Subject:** `New Customer Enrollment - <Name> [<Customer ID>]`
+   - **Body:** all customer details laid out from the template.
+   The admin simply reviews and clicks **Send**.
 
----
+> Note: `mailto:` links can only carry **plain text**, so the email uses the
+> plain-text version of the template (not a rich HTML layout).
 
-## Where is the customer Excel file?
+### Where is the data?
 
-**`data/customers.xlsx`** (relative to the project root).
+**`data/enrollment.json`** — a JSON array. Each submission is one object, e.g.:
 
-It contains a sheet called **"Customer Enrollments"** with the columns:
-
-| # | Column |
-|---|---|
-| 1 | Customer ID |
-| 2 | Submitted On |
-| 3 | Full Name |
-| 4 | Phone Number |
-| 5 | Email Address |
-| 6 | Age |
-| 7 | Occupation |
-| 8 | Monthly Income (INR) |
-| 9 | Address |
-| 10 | City |
-| 11 | State |
-| 12 | Pincode |
-| 13 | Interested Scheme |
-| 14 | Chit Value (INR) |
-| 15 | Duration (Months) |
-| 16 | How Did You Hear |
-| 17 | Message / Notes |
-
-This file is intended **for internal admin use only**. Take regular
-backups (a simple `cp data/customers.xlsx backups/customers-$(date +%F).xlsx`
-in cron is enough).
-
----
-
-## Production deployment notes
-
-- Set `NODE_ENV=production` in your environment.
-- Put the app behind a reverse proxy (Nginx / Caddy) with HTTPS.
-- Persist the `data/` folder on a non-ephemeral disk
-  (especially on Render, Railway, Heroku-style platforms — use a mounted
-  volume so `customers.xlsx` survives restarts).
-- The app already trusts the first proxy hop and emits standard security
-  headers; review them against your specific deployment if needed.
-
-### Quick deploy options
-
-- **VPS / On-premise** – `pm2 start server.js --name sba-chits` (after
-  `npm i -g pm2`). Set up Nginx as reverse proxy to port 3000.
-- **Render.com** – Web Service, build `npm install`, start `npm start`,
-  add the env vars from `.env`, attach a Persistent Disk mounted at
-  `/opt/render/project/src/data` (or symlink).
-- **Railway** – similar; attach a Volume mounted at `/app/data`.
+```json
+[
+  {
+    "customerId": "SBA-00001",
+    "submittedOn": "27 Jun 2026, 10:42:13 am",
+    "fullName": "Example Name",
+    "phone": "9894763248",
+    "email": "example@email.com",
+    "...": "...remaining form fields..."
+  }
+]
+```
 
 ---
 
